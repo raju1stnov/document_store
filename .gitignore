@@ -3,8 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Local uploads folder
+# Local uploads folder (ignored)
 uploads/
 
-# Environment variables
-.envllmresearch/
+# Environment variables (ignore common env files)
+.env
+
+# Ensure the llmresearch folder ignored
+llmresearch/
+

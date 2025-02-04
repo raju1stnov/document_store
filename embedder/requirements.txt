@@ -2,3 +2,4 @@ kafka-python
 sentence-transformers
 pymilvus
 numpy
+qdrant-client

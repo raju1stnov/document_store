@@ -1,50 +1,14 @@
 import os
-import time
 import json
 from kafka import KafkaConsumer
 from sentence_transformers import SentenceTransformer
-from pymilvus import (
-    connections,
-    FieldSchema,
-    CollectionSchema,
-    DataType,
-    Collection,
-    utility,
-    MilvusException,
-)
-import numpy as np
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import PointStruct
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-MILVUS_HOST = os.getenv("MILVUS_HOST", "milvus")
-MILVUS_PORT = os.getenv("MILVUS_PORT", "19530")
-
-# Retry logic: wait for Milvus to be available.
-print("Trying to connect to Milvus...")
-while True:
-    try:
-        connections.connect(host=MILVUS_HOST, port=MILVUS_PORT)
-        print("Connected to Milvus!")
-        break
-    except Exception as e:
-        print("Milvus not ready yet, waiting 10 seconds...", e)
-        time.sleep(10)
-
-COLLECTION_NAME = "documents"
-
-# Create the collection if it does not exist.
-if not utility.has_collection(COLLECTION_NAME):
-    doc_id_field = FieldSchema(
-        name="doc_id", dtype=DataType.VARCHAR, max_length=128, is_primary=True, auto_id=False
-    )
-    embedding_field = FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=384)
-    payload_field = FieldSchema(name="payload", dtype=DataType.VARCHAR, max_length=1024)
-    schema = CollectionSchema(
-        fields=[doc_id_field, embedding_field, payload_field],
-        description="Document embeddings",
-    )
-    collection = Collection(name=COLLECTION_NAME, schema=schema)
-else:
-    collection = Collection(name=COLLECTION_NAME)
+# Get Kafka configuration and Qdrant connection details from environment variables.
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 
 consumer = KafkaConsumer(
     "chunks",
@@ -54,32 +18,46 @@ consumer = KafkaConsumer(
     group_id="embedder-group"
 )
 
-# Initialize embedding model.
+# Initialize your embedding model.
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
+# Initialize the Qdrant client.
+qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+COLLECTION_NAME = "documents"
+
+# Create the collection if it does not exist.
+existing_collections = [c.name for c in qdrant_client.get_collections().collections]
+if COLLECTION_NAME not in existing_collections:
+    qdrant_client.recreate_collection(
+        collection_name=COLLECTION_NAME,
+        vectors_config={
+            "size": 384,  # Dimension for 'all-MiniLM-L6-v2'
+            "distance": "Cosine"
+        }
+    )
+
 def upsert_embedding(doc_id, embedding, payload):
-    # Convert payload dictionary to JSON string.
-    payload_str = json.dumps(payload)
-    data = [
-        [doc_id],
-        [embedding],
-        [payload_str]
-    ]
-    collection.insert(data)
+    point = PointStruct(
+        id=doc_id,
+        vector=embedding.tolist(),
+        payload=payload
+    )
+    qdrant_client.upsert(collection_name=COLLECTION_NAME, points=[point])
 
 if __name__ == "__main__":
     for msg in consumer:
         try:
             data = msg.value
-            chunk_text_value = data.get("chunk_text", "")
             print(f"[Embedder] Embedding chunk {data.get('chunk_index')} of file {data.get('file_name')}")
-            embedding = model.encode(chunk_text_value).tolist()
+            chunk_text = data.get("chunk_text", "")
+            embedding = model.encode(chunk_text).tolist()
             payload = {
                 "file_name": data.get("file_name"),
                 "saved_filename": data.get("saved_filename"),
                 "chunk_index": data.get("chunk_index"),
-                "chunk_text": chunk_text_value
+                "chunk_text": chunk_text
             }
+            # Create a unique identifier for the chunk.
             doc_id = f"{data.get('file_name')}_{data.get('chunk_index')}"
             upsert_embedding(doc_id, embedding, payload)
         except Exception as e:

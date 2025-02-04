@@ -1,6 +1,6 @@
 fastapi
 uvicorn
 sentence-transformers
-pymilvus
+qdrant-client
 kafka-python
 python-multipart
