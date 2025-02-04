@@ -1,4 +1,53 @@
-# document_store
+
+1. Ingesting Files into Your Document Store
+    Using the API’s Upload Endpoint
+    Document store API exposes a /upload endpoint. 
+    You can use the Swagger UI (available at http://localhost:8000/docs) or a tool like Postman or curl to upload the files.
+
+    Using Curl Example
+    Open a terminal and run a command similar to this (repeat for each file):
+    curl -F "file=@/path/to/Healthcare_Contract_1.docx" http://localhost:8000/upload
+
+    Using Swagger UI
+    Open your browser and navigate to http://localhost:8000/docs.
+    Find the POST /upload endpoint.
+    Click on it, then click Try it out.
+    Choose your file and click Execute.
+    Repeat the upload for all your sample files.
+
+2. Verifying Ingestion and Testing the Flow
+    Check Kafka:
+    Open Kafkadrop at http://localhost:9000 to verify that messages are being published to the raw_files topic, then processed through subsequent topics (e.g., extracted_docs).
+
+    Check API Logs:
+    Inspect the logs for your extractor, semantic, chunker, and embedder services to ensure that each stage of the pipeline is processing the files.
+
+    Search Test:
+    After ingestion, use the /search endpoint (available via http://localhost:8000/docs) to perform a test query. For example:
+    http://localhost:8000/search?query=contract&limit=5
+    This should return relevant document chunks stored in your Qdrant vector database.
+
+
+3. Next Steps for RAG and LLM Integration
+    Once you have successfully ingested your healthcare/vendor contract documents, next steps might include:
+
+    1. Implementing a Retrieval-Augmented Generation (RAG) Architecture:
+        i.Use search endpoint to retrieve relevant document passages based on a user query.
+        ii. Feed these passages as context to a language model (LLM) such as GPT/transformer (via an API like OpenAI’s or Hugging Face Transformers).
+    2. Transforming Results to CSV:
+        i. Once you have your retrieved passages and possibly a generated response, you can use Python (e.g., with the pandas library) to format the results as a CSV file.
+        ii. Expose another endpoint (or a separate script) that takes the retrieval output, converts it to CSV, and either returns it as a file download or saves it to disk.
+
+
+
+
+
+
+
+
+
+
+# document_store docker operation syntax
 docker-compose down
 docker-compose up --build
 
