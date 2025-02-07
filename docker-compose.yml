@@ -30,11 +30,19 @@ services:
     #   - qdrant_data:/qdrant/storage
 
   extractor:
-    build: ./extractor
+    build:
+      context: .
+      dockerfile: extractor/Dockerfile
+    # build: ./extractor
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - HF_HOME=/app/hf_cache  # Explicitly set HF_HOME
+      - TRANSFORMERS_OFFLINE=1  #forces the Transformers library to use the local cache (in /app/hf_cache),
+      # - HF_HUB_OFFLINE=1        # Prevent Hugging Face from attempting to download
     depends_on:
       - kafka
+    volumes:
+      - ./uploads:/app/uploads  # Ensure extractor can read uploaded files      
 
   semantic:
     build: ./semantic
@@ -72,6 +80,8 @@ services:
     depends_on:
       - kafka
       - qdrant
+    volumes:
+      - ./uploads:/app/uploads  # Mount host uploads folder into container
 
   kafkadrop:
     image: obsidiandynamics/kafdrop

@@ -12,3 +12,9 @@ uploads/
 # Ensure the llmresearch folder ignored
 llmresearch/
 
+# Ignore the hf_cache directory
+/hf_cache/
+
+# Ignore the test directory
+/test/
+

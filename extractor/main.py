@@ -21,26 +21,34 @@ while consumer is None:
             auto_offset_reset="earliest",
             group_id="extractor-group"
         )
-        print("Connected to Kafka broker.")
+        print("Connected to Kafka broker.", flush=True)
     except kafka_errors.NoBrokersAvailable as e:
-        print("Kafka not ready, waiting 10 seconds...", e)
+        print("Kafka not ready, waiting 10 seconds...", e, flush=True)
         time.sleep(10)
 
-# Create a Kafka producer (this usually succeeds quickly).
+# Create a Kafka producer.
 producer = KafkaProducer(
     bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
     value_serializer=lambda v: json.dumps(v).encode("utf-8")
 )
 
-# Instantiate a DocumentConverter from Docling.
-converter = DocumentConverter()
+# Debug cache directory
+print(f"HF_HOME: {os.getenv('HF_HOME')}", flush=True)
+print(f"Cache contents: {os.listdir(os.getenv('HF_HOME'))}", flush=True)
+
+try:
+    print("Initializing DocumentConverter...", flush=True)
+    converter = DocumentConverter()  # No need for `cache_dir`, rely on HF_HOME
+    print("DocumentConverter initialized successfully.", flush=True)
+except Exception as e:
+    print(f"Error initializing DocumentConverter: {e}", flush=True)
 
 # Process incoming Kafka messages.
 if __name__ == "__main__":
     for msg in consumer:
         try:
             data = msg.value
-            print(f"[Extractor] Processing file: {data['file_name']}")
+            print(f"[Extractor] Processing file: {data['file_name']}", flush=True)
             
             # Read the file as binary.
             with open(data["file_path"], "rb") as f:
@@ -70,4 +78,4 @@ if __name__ == "__main__":
             producer.flush()
             
         except Exception as e:
-            print(f"[Extractor] Error processing {data.get('file_name')}: {e}")
+            print(f"[Extractor] Error processing {data.get('file_name')}: {e}", flush=True)
